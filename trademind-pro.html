@@ -752,7 +752,7 @@
             // Create user profile in Firestore
             await setDoc(doc(db, "users", user.uid), {
                 email: user.email,
-                displayName: user.displayName || 'New Trader',
+                displayName: user.displayName,
                 photoURL: user.photoURL,
                 createdAt: serverTimestamp(),
                 accountStatus: 'active',
@@ -865,7 +865,6 @@
         try {
             await signOut(auth);
             window.showToast('👋 Logged out successfully!', 'success');
-            window.dispatchEvent(new Event('dataLoaded')); // Reload data to clear UI
             console.log('✅ Signed out');
         } catch(error) {
             window.showToast('❌ Logout failed: ' + error.message, 'error');
@@ -888,9 +887,12 @@
                 console.error('Error loading user profile:', error);
             }
             
-            // Show main app
-            document.getElementById('authContainer').style.display = 'none';
-            document.getElementById('appContainer').style.display = 'block';
+            // Hide auth login screen, show main app
+            const authContainer = document.getElementById('authContainer');
+            const appContainer = document.getElementById('appContainer');
+            
+            if(authContainer) authContainer.style.display = 'none';
+            if(appContainer) appContainer.style.display = 'flex';
             
             // Update user display
             const userNameSpan = document.getElementById('userNameSpan');
@@ -904,10 +906,12 @@
         } else {
             console.log('👤 User logged out');
             
-            // Show auth pages
-            document.getElementById('authContainer').style.display = 'flex';
-            document.getElementById('appContainer').style.display = 'none';
-            window.dispatchEvent(new Event('dataLoaded')); // Reload to clear UI
+            // Show auth login screen, hide main app
+            const authContainer = document.getElementById('authContainer');
+            const appContainer = document.getElementById('appContainer');
+            
+            if(authContainer) authContainer.style.display = 'flex';
+            if(appContainer) appContainer.style.display = 'none';
         }
     });
     
@@ -949,7 +953,6 @@
             document.getElementById('jExit').value = '';
             document.getElementById('jPnL').value = '';
             document.getElementById('jMistake').value = '';
-            return true;
             
         } catch(error) {
             console.error('Trade error:', error);
@@ -960,7 +963,6 @@
             } else {
                 window.showToast('❌ Error: ' + error.message, 'error');
             }
-            return false;
         }
     };
     
@@ -990,11 +992,9 @@
                 dayIndex: dayIndex,
                 completed: completed,
                 updatedAt: serverTimestamp()
-            }, { merge: true });
-            window.showToast(`✅ Day ${dayIndex + 1} progress updated!`, 'success');
+            });
         } catch(error) {
             console.error('Progress update error:', error);
-            window.showToast('❌ Progress update failed!', 'error');
         }
     };
 
@@ -1023,7 +1023,7 @@
         }
         
         // Check pair format
-        if(!trade.pair.match(/^[A-Z0-9]{2,6}\/[A-Z0-9]{2,6}$/i)) {
+        if(!trade.pair.match(/^[A-Z0-9]{2,6}\/[A-Z0-9]{2,6}$/)) {
             return { valid: false, error: '❌ Pair format: BTC/USDT ya ETH/INR' };
         }
         
@@ -1118,40 +1118,11 @@
     let dailyProgress = Array(30).fill(false);
     let userStats = { discipline: 70, riskControl: 70, winRate: 0, totalPnL: 0, totalTrades: 0, completedDays: 0 };
     
-    async function loadData() {
-        const user = window.auth?.currentUser;
-        if (user && window.db && window.firebaseReady) {
-            try {
-                // Fetch trades
-                const tradesQuery = query(
-                    collection(window.db, "trades"), 
-                    where("userId", "==", user.uid), 
-                    orderBy("createdAt", "desc")
-                );
-                const tradesSnapshot = await getDocs(tradesQuery);
-                trades = tradesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-                // Fetch progress
-                const progressCollection = collection(window.db, `users/${user.uid}/progress`);
-                const progressSnapshot = await getDocs(progressCollection);
-                dailyProgress = Array(30).fill(false);
-                progressSnapshot.forEach(doc => {
-                    const data = doc.data();
-                    if (data.dayIndex >= 0 && data.dayIndex < 30) {
-                        dailyProgress[data.dayIndex] = data.completed;
-                    }
-                });
-            } catch (error) {
-                console.error("Error loading data from Firestore:", error);
-                window.showToast("❌ Failed to load your data.", "error");
-                trades = [];
-                dailyProgress = Array(30).fill(false);
-            }
-        } else {
-            // No user, clear data
-            trades = [];
-            dailyProgress = Array(30).fill(false);
-        }
+    function loadData() {
+        const tr = localStorage.getItem('tm_trades');
+        if(tr) trades = JSON.parse(tr);
+        const prog = localStorage.getItem('tm_progress');
+        if(prog) dailyProgress = JSON.parse(prog);
         render();
     }
     
@@ -2293,14 +2264,15 @@
     }
 
     function attachEvents() {
-        document.querySelectorAll('.toggle-day').forEach(btn => { 
-            btn.onclick = async () => { 
-                const idx = parseInt(btn.dataset.dayidx); 
-                const newCompletedStatus = !dailyProgress[idx];
-                await window.updateProgress(idx, newCompletedStatus); 
-                await loadData(); 
-            }; 
+        // Setup navigation button listeners
+        document.querySelectorAll('.nav-btn, .mobile-nav-item').forEach(btn => { 
+            btn.addEventListener('click', () => { 
+                activeTab = btn.dataset.tab; 
+                render(); 
+            }); 
         });
+        
+        document.querySelectorAll('.toggle-day').forEach(btn => { btn.onclick = async () => { const idx = parseInt(btn.dataset.dayidx); dailyProgress[idx] = !dailyProgress[idx]; await window.updateProgress(idx, dailyProgress[idx]); localStorage.setItem('tm_progress', JSON.stringify(dailyProgress)); loadData(); }; });
         // ==================== JOURNAL FORM VALIDATION ====================
         document.getElementById('saveJournalBtn')?.addEventListener('click', async () => {
             const trade = {
@@ -2314,10 +2286,8 @@
             };
             
             // Use centralized validation function
-            const success = await window.addTrade(trade);
-            if (success) {
-                await loadData();
-            }
+            await window.addTrade(trade);
+            setTimeout(() => loadData(), 500);
         });
         document.getElementById('refreshChartBtn')?.addEventListener('click', () => window.initTradingViewChart());
         document.getElementById('takeTradeExecBtn')?.addEventListener('click', () => window.showToast('🚀 Trade executed! Journal me update karna mat bhoolna.', 'success'));
@@ -2451,8 +2421,6 @@
     }
     
     window.addEventListener('dataLoaded', () => loadData());
-    document.querySelectorAll('.nav-btn, .mobile-nav-item').forEach(btn => { btn.addEventListener('click', () => { activeTab = btn.dataset.tab; render(); }); });
-    loadData();
 </script>
 <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
 </body>
