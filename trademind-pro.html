@@ -568,6 +568,10 @@
         </div>
         <div class="space-y-4">
             <div>
+                <label class="block text-sm font-semibold mb-2 text-gray-300">Trader Name</label>
+                <input id="regName" type="text" placeholder="Your Trading Name" class="w-full">
+            </div>
+            <div>
                 <label class="block text-sm font-semibold mb-2 text-gray-300">Email Address</label>
                 <input id="regEmail" type="email" placeholder="trader@example.com" class="w-full">
             </div>
@@ -638,80 +642,436 @@
     </nav>
 </div>
 
-<!-- Firebase SDK -->
+<!-- Firebase SDK with Enhanced Initialization -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, addDoc, getDocs, query, where, orderBy, limit, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     
+    // ==================== FIREBASE CONFIGURATION ====================
+    // Project: TradeMind Pro Trading Platform
+    // SecurityRules Version: 2.0 (Validated)
     const firebaseConfig = {
-        apiKey: "AIzaSyDPMUlI0gErxXHjTrb7kzqvmGXL7hYF2CM",
-        authDomain: "trademind-ac88f.firebaseapp.com",
-        projectId: "trademind-ac88f",
-        storageBucket: "trademind-ac88f.firebasestorage.app",
-        messagingSenderId: "912504780824",
-        appId: "1:912504780824:web:b764ff15e861f095bc2b6d",
-        measurementId: "G-JB8GWCZHFC"
+        apiKey: "AIzaSyDPMUlI0gErxXHjTrb7kzqvmGXL7hYF2CM",           // Public API key
+        authDomain: "trademind-ac88f.firebaseapp.com",               // Authentication domain
+        projectId: "trademind-ac88f",                                // Firestore project ID
+        storageBucket: "trademind-ac88f.firebasestorage.app",        // Cloud Storage bucket
+        messagingSenderId: "912504780824",                           // Cloud Messaging sender ID
+        appId: "1:912504780824:web:b764ff15e861f095bc2b6d",         // Firebase app ID
+        measurementId: "G-JB8GWCZHFC"                               // Google Analytics ID (optional)
     };
     
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const googleProvider = new GoogleAuthProvider();
+    // ==================== FIREBASE INITIALIZATION WITH ERROR HANDLING ====================
+    let app, auth, db, googleProvider;
+    let firebaseReady = false;
+    let connectionStatus = 'initializing';
     
+    try {
+        // Initialize Firebase App
+        app = initializeApp(firebaseConfig);
+        console.log('✅ Firebase App initialized successfully');
+        
+        // Initialize Firebase Authentication
+        auth = getAuth(app);
+        googleProvider = new GoogleAuthProvider();
+        console.log('✅ Firebase Auth initialized');
+        
+        // Initialize Firestore Database
+        db = getFirestore(app);
+        console.log('✅ Firestore Database initialized');
+        
+        // Mark Firebase as ready
+        firebaseReady = true;
+        connectionStatus = 'connected';
+        
+    } catch(initError) {
+        console.error('❌ Firebase initialization failed:', initError);
+        firebaseReady = false;
+        connectionStatus = 'error';
+    }
+    
+    // ==================== EXPOSE FIREBASE INSTANCES TO WINDOW ====================
     window.db = db;
     window.auth = auth;
+    window.firebaseReady = firebaseReady;
+    window.connectionStatus = connectionStatus;
     
+    // ==================== FIREBASE STATUS MONITORING ====================
+    window.checkFirebaseStatus = () => {
+        return {
+            ready: firebaseReady,
+            status: connectionStatus,
+            auth: auth ? 'Ready' : 'Not initialized',
+            db: db ? 'Ready' : 'Not initialized',
+            user: auth?.currentUser ? auth.currentUser.email : 'Not logged in'
+        };
+    };
+    
+    // Log Firebase status
+    console.log('🔧 Firebase Status:', window.checkFirebaseStatus());
+    
+    // ==================== TOAST NOTIFICATION SYSTEM ====================
     window.showToast = (message, type = 'info') => {
         const toast = document.createElement('div');
-        toast.className = `fixed top-4 right-4 z-[9999] px-6 py-3 rounded-2xl font-display text-sm font-medium shadow-2xl transition-all duration-300 ${
-            type === 'success' ? 'bg-green-500/20 border border-green-500/50 text-green-400' :
-            type === 'error' ? 'bg-red-500/20 border border-red-500/50 text-red-400' :
-            'bg-cyan-500/20 border border-cyan-500/50 text-cyan-400'
-        }`;
-        toast.innerHTML = message;
+        const icons = {
+            success: '✅',
+            error: '❌',
+            warning: '⚠️',
+            info: 'ℹ️'
+        };
+        
+        const colors = {
+            success: 'bg-green-500/20 border-green-500/50 text-green-400',
+            error: 'bg-red-500/20 border-red-500/50 text-red-400',
+            warning: 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400',
+            info: 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+        };
+        
+        toast.className = `fixed top-4 right-4 z-[9999] px-6 py-3 rounded-2xl font-display text-sm font-medium shadow-2xl transition-all duration-300 border ${colors[type] || colors.info}`;
+        toast.innerHTML = `<span class="mr-2">${icons[type]}</span>${message}`;
         document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
+        
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 2800);
     };
     
-    window.signInWithGoogle = async () => { try { await signInWithPopup(auth, googleProvider); } catch(e) { window.showToast(e.message, 'error'); } };
-    window.signUpEmail = async () => {
-        const email = document.getElementById('regEmail').value;
-        const password = document.getElementById('regPassword').value;
-        if(!email || !password || password.length < 6) { window.showToast('Email aur password (min 6 chars) dalo', 'error'); return; }
-        try { await createUserWithEmailAndPassword(auth, email, password); window.showToast('Account ban gaya! Welcome trader 🚀', 'success'); } catch(err) { window.showToast(err.message, 'error'); }
-    };
-    window.loginEmail = async () => {
-        const email = document.getElementById('loginEmail').value;
-        const password = document.getElementById('loginPassword').value;
-        try { await signInWithEmailAndPassword(auth, email, password); } catch(err) { window.showToast('Wrong credentials bro', 'error'); }
-    };
-    window.logout = async () => { await signOut(auth); location.reload(); };
-    
-    window.updateProgress = async (dayIdx, completed) => {
-        const user = auth.currentUser;
-        if(!user) return;
+    // ==================== FIREBASE AUTH FUNCTIONS ====================
+    window.signInWithGoogle = async () => {
+        if(!firebaseReady) {
+            window.showToast('❌ Firebase not ready. Refresh page!', 'error');
+            return;
+        }
+        
         try {
-            await setDoc(doc(db, "users", user.uid, "progress", `day_${dayIdx+1}`), { completed, updatedAt: serverTimestamp() }, { merge: true });
-            const progSnap = await getDocs(collection(db, "users", user.uid, "progress"));
-            let completedCount = 0;
-            progSnap.forEach(d => { if(d.data().completed) completedCount++; });
-            await updateDoc(doc(db, "users", user.uid), { "stats.completedDays": completedCount });
-        } catch(e) { console.error(e); }
+            window.showToast('🔄 Signing in with Google...', 'info');
+            const result = await signInWithPopup(auth, googleProvider);
+            const user = result.user;
+            
+            // Create user profile in Firestore
+            await setDoc(doc(db, "users", user.uid), {
+                email: user.email,
+                displayName: user.displayName || 'New Trader',
+                photoURL: user.photoURL,
+                createdAt: serverTimestamp(),
+                accountStatus: 'active',
+                userId: user.uid
+            }, { merge: true });
+            
+            window.showToast(`✅ Welcome ${user.displayName}! 🎉`, 'success');
+            console.log('✅ Signed in:', user.email);
+            
+        } catch(error) {
+            if(error.code === 'auth/popup-closed-by-user') {
+                window.showToast('Popup closed. Try again!', 'warning');
+            } else if(error.code === 'auth/internal-error') {
+                window.showToast('❌ Firebase connection failed. Check internet!', 'error');
+            } else {
+                window.showToast('❌ Sign-in failed: ' + error.message, 'error');
+            }
+            console.error('Google Sign-in error:', error);
+        }
     };
     
+    window.signUpEmail = async () => {
+        if(!firebaseReady) {
+            window.showToast('❌ Firebase not ready!', 'error');
+            return;
+        }
+        
+        const email = document.getElementById('regEmail')?.value;
+        const password = document.getElementById('regPassword')?.value;
+        const displayName = document.getElementById('regName')?.value;
+        
+        // Validation
+        if(!email || !password || !displayName) {
+            window.showToast('❌ All fields required!', 'error');
+            return;
+        }
+        
+        if(password.length < 6) {
+            window.showToast('❌ Password must be 6+ characters', 'error');
+            return;
+        }
+        
+        try {
+            window.showToast('🔄 Creating account...', 'info');
+            const userCred = await createUserWithEmailAndPassword(auth, email, password);
+            const user = userCred.user;
+            
+            // Create user profile with required fields (Firebase rules validation)
+            await setDoc(doc(db, "users", user.uid), {
+                email: user.email,
+                displayName: displayName,
+                createdAt: serverTimestamp(),
+                accountStatus: 'active',
+                userId: user.uid
+            });
+            
+            window.showToast(`✅ Account created! Welcome ${displayName}! 🎉`, 'success');
+            console.log('✅ New user created:', email);
+            
+        } catch(error) {
+            const errorMessages = {
+                'auth/email-already-in-use': 'Email already registered!',
+                'auth/invalid-email': 'Invalid email format!',
+                'auth/weak-password': 'Password too weak!',
+                'auth/network-request-failed': 'No internet connection!'
+            };
+            
+            const message = errorMessages[error.code] || error.message;
+            window.showToast('❌ ' + message, 'error');
+            console.error('Sign-up error:', error);
+        }
+    };
+    
+    window.signInEmail = async () => {
+        if(!firebaseReady) {
+            window.showToast('❌ Firebase not ready!', 'error');
+            return;
+        }
+        
+        const email = document.getElementById('loginEmail')?.value;
+        const password = document.getElementById('loginPassword')?.value;
+        
+        if(!email || !password) {
+            window.showToast('❌ Email and password required!', 'error');
+            return;
+        }
+        
+        try {
+            window.showToast('🔄 Signing in...', 'info');
+            const userCred = await signInWithEmailAndPassword(auth, email, password);
+            window.showToast(`✅ Welcome back! 🎉`, 'success');
+            console.log('✅ Signed in:', email);
+            
+        } catch(error) {
+            const errorMessages = {
+                'auth/user-not-found': 'Email not registered!',
+                'auth/wrong-password': 'Wrong password!',
+                'auth/invalid-email': 'Invalid email format!',
+                'auth/user-disabled': 'Account disabled!',
+                'auth/network-request-failed': 'No internet connection!'
+            };
+            
+            const message = errorMessages[error.code] || error.message;
+            window.showToast('❌ ' + message, 'error');
+            console.error('Sign-in error:', error);
+        }
+    };
+    
+    window.logout = async () => {
+        try {
+            await signOut(auth);
+            window.showToast('👋 Logged out successfully!', 'success');
+            window.dispatchEvent(new Event('dataLoaded')); // Reload data to clear UI
+            console.log('✅ Signed out');
+        } catch(error) {
+            window.showToast('❌ Logout failed: ' + error.message, 'error');
+        }
+    };
+    
+    // ==================== AUTH STATE LISTENER ====================
+    onAuthStateChanged(auth, async (user) => {
+        if(user) {
+            console.log('👤 User logged in:', user.email);
+            
+            // Get user profile
+            try {
+                const userDoc = await getDoc(doc(db, "users", user.uid));
+                if(userDoc.exists()) {
+                    window.currentUserData = userDoc.data();
+                    console.log('📊 User profile loaded');
+                }
+            } catch(error) {
+                console.error('Error loading user profile:', error);
+            }
+            
+            // Show main app
+            document.getElementById('authContainer').style.display = 'none';
+            document.getElementById('appContainer').style.display = 'block';
+            
+            // Update user display
+            const userNameSpan = document.getElementById('userNameSpan');
+            if(userNameSpan) {
+                userNameSpan.textContent = user.displayName || user.email;
+            }
+            
+            // Trigger data load
+            window.dispatchEvent(new Event('dataLoaded'));
+            
+        } else {
+            console.log('👤 User logged out');
+            
+            // Show auth pages
+            document.getElementById('authContainer').style.display = 'flex';
+            document.getElementById('appContainer').style.display = 'none';
+            window.dispatchEvent(new Event('dataLoaded')); // Reload to clear UI
+        }
+    });
+    
+    // ==================== DATABASE HELPER FUNCTIONS ====================
     window.addTrade = async (trade) => {
         const user = auth.currentUser;
-        if(!user) return;
+        if(!user || !firebaseReady) {
+            window.showToast('❌ Not logged in or Firebase not ready!', 'error');
+            return;
+        }
+        
+        // Validate trade data against Firebase rules
+        const validation = window.validateTrade(trade);
+        if(!validation.valid) {
+            window.showToast(validation.error, 'error');
+            return;
+        }
+        
         try {
-            await addDoc(collection(db, "trades"), { ...trade, userId: user.uid, createdAt: serverTimestamp(), date: trade.date || new Date().toISOString().slice(0,10) });
-            window.showToast('Trade journal me add ho gaya! 📓', 'success');
-        } catch(e) { window.showToast('Error: ' + e.message, 'error'); }
+            // Build trade object with all required fields
+            const tradeData = {
+                userId: user.uid,                    // IMMUTABLE - Set by server
+                pair: trade.pair.toUpperCase(),
+                entry: parseFloat(trade.entry),      // VALIDATED - Must be > 0
+                exit: parseFloat(trade.exit),        // VALIDATED - Must be > 0
+                pnl: parseFloat(trade.pnl) || 0,
+                emotion: trade.emotion || '😐 Neutral',
+                mistake: trade.mistake || '',
+                date: trade.date || new Date().toISOString().slice(0,10),
+                createdAt: serverTimestamp()         // IMMUTABLE - Firestore timestamp
+            };
+            
+            await addDoc(collection(db, "trades"), tradeData);
+            window.showToast('✅ Trade successfully recorded! 📓', 'success');
+            
+            // Clear inputs
+            document.getElementById('jPair').value = '';
+            document.getElementById('jEntry').value = '';
+            document.getElementById('jExit').value = '';
+            document.getElementById('jPnL').value = '';
+            document.getElementById('jMistake').value = '';
+            return true;
+            
+        } catch(error) {
+            console.error('Trade error:', error);
+            if(error.code === 'permission-denied') {
+                window.showToast('❌ Permission denied. Check Firebase rules!', 'error');
+            } else if(error.code === 'invalid-argument') {
+                window.showToast('❌ Invalid data format!', 'error');
+            } else {
+                window.showToast('❌ Error: ' + error.message, 'error');
+            }
+            return false;
+        }
     };
     
     window.deleteTrade = async (tradeId) => {
-        if(!confirm('Trade delete karna chahte ho?')) return;
-        try { await deleteDoc(doc(db, "trades", tradeId)); window.showToast('Trade deleted', 'success'); window.dispatchEvent(new Event('dataLoaded')); } catch(e) { window.showToast('Delete failed', 'error'); }
+        if(!confirm('Delete this trade?')) return;
+        if(!firebaseReady) {
+            window.showToast('❌ Firebase not ready!', 'error');
+            return;
+        }
+        
+        try {
+            await deleteDoc(doc(db, "trades", tradeId));
+            window.showToast('✅ Trade deleted', 'success');
+            window.dispatchEvent(new Event('dataLoaded'));
+        } catch(error) {
+            console.error('Delete error:', error);
+            window.showToast('❌ Delete failed: ' + error.message, 'error');
+        }
+    };
+    
+    window.updateProgress = async (dayIndex, completed) => {
+        const user = auth.currentUser;
+        if(!user || !firebaseReady) return;
+        
+        try {
+            await setDoc(doc(db, `users/${user.uid}/progress/day_${dayIndex}`), {
+                dayIndex: dayIndex,
+                completed: completed,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+            window.showToast(`✅ Day ${dayIndex + 1} progress updated!`, 'success');
+        } catch(error) {
+            console.error('Progress update error:', error);
+            window.showToast('❌ Progress update failed!', 'error');
+        }
+    };
+
+    // ==================== VALIDATION FUNCTIONS ====================
+    window.validateTrade = (trade) => {
+        // Check required fields
+        if(!trade.pair || !trade.entry || !trade.exit || trade.pnl === undefined) {
+            return { valid: false, error: '❌ All fields required: Pair, Entry, Exit, P&L' };
+        }
+        
+        // Check if prices are valid numbers
+        const entry = parseFloat(trade.entry);
+        const exit = parseFloat(trade.exit);
+        
+        if(isNaN(entry) || isNaN(exit)) {
+            return { valid: false, error: '❌ Entry aur Exit valid numbers honi chahiye' };
+        }
+        
+        // CRITICAL: Entry and Exit must be positive (Firebase rules requirement)
+        if(entry <= 0) {
+            return { valid: false, error: '❌ Entry price > 0 honi chahiye (₹0 se zyada)' };
+        }
+        
+        if(exit <= 0) {
+            return { valid: false, error: '❌ Exit price > 0 honi chahiye (₹0 se zyada)' };
+        }
+        
+        // Check pair format
+        if(!trade.pair.match(/^[A-Z0-9]{2,6}\/[A-Z0-9]{2,6}$/i)) {
+            return { valid: false, error: '❌ Pair format: BTC/USDT ya ETH/INR' };
+        }
+        
+        return { valid: true };
+    };
+    
+    window.validateUserProfile = (profile) => {
+        const requiredFields = ['email', 'displayName', 'accountStatus'];
+        
+        for(let field of requiredFields) {
+            if(!profile[field]) {
+                return { valid: false, error: `Missing required field: ${field}` };
+            }
+        }
+        
+        // Email validation
+        if(!profile.email.match(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/)) {
+            return { valid: false, error: 'Invalid email format' };
+        }
+        
+        // Display name must be at least 2 characters
+        if(profile.displayName.length < 2) {
+            return { valid: false, error: 'Display name must be at least 2 characters' };
+        }
+        
+        return { valid: true };
+    };
+    
+    window.validateCommunityPost = (post) => {
+        const requiredFields = ['content', 'authorId'];
+        
+        for(let field of requiredFields) {
+            if(!post[field]) {
+                return { valid: false, error: `Missing required field: ${field}` };
+            }
+        }
+        
+        // Content must be at least 5 characters
+        if(post.content.length < 5) {
+            return { valid: false, error: 'Post must be at least 5 characters' };
+        }
+        
+        // Content shouldn't be too long (spam prevention)
+        if(post.content.length > 5000) {
+            return { valid: false, error: 'Post too long (max 5000 characters)' };
+        }
+        
+        return { valid: true };
     };
     
     window.toggleTheme = () => {
@@ -750,29 +1110,6 @@
             container.innerHTML = '<div class="flex items-center justify-center h-full text-gray-400">Loading TradingView...</div>';
         }
     };
-    
-    onAuthStateChanged(auth, async (user) => {
-        if(user) {
-            document.getElementById('authContainer').classList.add('hidden');
-            document.getElementById('appContainer').classList.remove('hidden');
-            document.getElementById('userNameSpan').innerText = user.displayName || user.email.split('@')[0];
-            const ref = doc(db, "users", user.uid);
-            const snap = await getDoc(ref);
-            if(!snap.exists()) await setDoc(ref, { email: user.email, displayName: user.displayName || "Trader", createdAt: serverTimestamp(), stats: { discipline: 70, riskControl: 70, winRate: 0, totalPnL: 0, totalTrades: 0, completedDays: 0 } });
-            const tradesSnap = await getDocs(query(collection(db, "trades"), where("userId", "==", user.uid), orderBy("date", "desc"), limit(100)));
-            let trades = [];
-            tradesSnap.forEach(d => trades.push({ id: d.id, ...d.data() }));
-            localStorage.setItem('tm_trades', JSON.stringify(trades));
-            const progSnap = await getDocs(collection(db, "users", user.uid, "progress"));
-            let prog = Array(30).fill(false);
-            progSnap.forEach(d => { let num = parseInt(d.id.split('_')[1]); if(num>0 && num<=30) prog[num-1] = d.data().completed; });
-            localStorage.setItem('tm_progress', JSON.stringify(prog));
-            window.dispatchEvent(new Event('dataLoaded'));
-        } else {
-            document.getElementById('authContainer').classList.remove('hidden');
-            document.getElementById('appContainer').classList.add('hidden');
-        }
-    });
 </script>
 
 <script>
@@ -781,11 +1118,40 @@
     let dailyProgress = Array(30).fill(false);
     let userStats = { discipline: 70, riskControl: 70, winRate: 0, totalPnL: 0, totalTrades: 0, completedDays: 0 };
     
-    function loadData() {
-        const tr = localStorage.getItem('tm_trades');
-        if(tr) trades = JSON.parse(tr);
-        const prog = localStorage.getItem('tm_progress');
-        if(prog) dailyProgress = JSON.parse(prog);
+    async function loadData() {
+        const user = window.auth?.currentUser;
+        if (user && window.db && window.firebaseReady) {
+            try {
+                // Fetch trades
+                const tradesQuery = query(
+                    collection(window.db, "trades"), 
+                    where("userId", "==", user.uid), 
+                    orderBy("createdAt", "desc")
+                );
+                const tradesSnapshot = await getDocs(tradesQuery);
+                trades = tradesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                // Fetch progress
+                const progressCollection = collection(window.db, `users/${user.uid}/progress`);
+                const progressSnapshot = await getDocs(progressCollection);
+                dailyProgress = Array(30).fill(false);
+                progressSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.dayIndex >= 0 && data.dayIndex < 30) {
+                        dailyProgress[data.dayIndex] = data.completed;
+                    }
+                });
+            } catch (error) {
+                console.error("Error loading data from Firestore:", error);
+                window.showToast("❌ Failed to load your data.", "error");
+                trades = [];
+                dailyProgress = Array(30).fill(false);
+            }
+        } else {
+            // No user, clear data
+            trades = [];
+            dailyProgress = Array(30).fill(false);
+        }
         render();
     }
     
@@ -1087,71 +1453,95 @@
             <div class="glass-card p-8 bg-gradient-to-r from-purple-500/20 to-pink-500/10 fade-in">
                 <h2 class="text-4xl font-bold neon-text mb-3">📝 Trade Journal</h2>
                 <p class="text-lg text-gray-400">Har trade record karo - Data without emotion = Pure trading performance</p>
+                <div class="mt-4 p-4 bg-blue-500/20 border border-blue-500/50 rounded-lg text-sm">
+                    <span class="text-cyan-300 font-semibold">📌 Rules Reminder:</span>
+                    <p>• Entry aur Exit ₹0 se zyada hona zaroori hai</p>
+                    <p>• Created date automatically set hoga (edit nahi kar sakte)</p>
+                    <p>• UserId protected hai - sirf aapka data save hoga</p>
+                </div>
             </div>
             
             <div class="glass-card p-8">
                 <h3 class="text-2xl font-bold mb-6">➕ New Trade Entry</h3>
-                <div class="grid md:grid-cols-3 gap-4 mb-5">
-                    <div>
-                        <label class="block text-sm font-semibold mb-2 text-gray-300">Trading Pair</label>
-                        <input id="jPair" placeholder="BTC/USDT" class="w-full font-mono">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold mb-2 text-gray-300">Entry Price</label>
-                        <input id="jEntry" type="number" placeholder="50000" class="w-full font-mono">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold mb-2 text-gray-300">Exit Price</label>
-                        <input id="jExit" type="number" placeholder="51000" class="w-full font-mono">
-                    </div>
-                </div>
                 
                 <div class="grid md:grid-cols-3 gap-4 mb-5">
                     <div>
-                        <label class="block text-sm font-semibold mb-2 text-gray-300">P&L Amount (₹)</label>
-                        <input id="jPnL" type="number" placeholder="₹500" class="w-full font-mono">
+                        <label class="block text-sm font-semibold mb-2 text-gray-300">Trading Pair <span class="text-red-400">*</span></label>
+                        <input id="jPair" placeholder="BTC/USDT" class="w-full font-mono bg-gray-700/50 border border-cyan-500/30 rounded-lg p-3 focus:border-cyan-500 transition" maxlength="12">
+                        <small class="text-gray-500">Format: BTC/USDT, ETH/INR</small>
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold mb-2 text-gray-300">Emotion During Trade</label>
-                        <select id="jEmotion" class="w-full">
+                        <label class="block text-sm font-semibold mb-2 text-gray-300">Entry Price ₹ <span class="text-red-400">*</span></label>
+                        <input id="jEntry" type="number" min="0.01" step="0.01" placeholder="50000" class="w-full font-mono bg-gray-700/50 border border-green-500/30 rounded-lg p-3 focus:border-green-500 transition">
+                        <small class="text-green-400">Must be > ₹0</small>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-2 text-gray-300">Exit Price ₹ <span class="text-red-400">*</span></label>
+                        <input id="jExit" type="number" min="0.01" step="0.01" placeholder="51000" class="w-full font-mono bg-gray-700/50 border border-green-500/30 rounded-lg p-3 focus:border-green-500 transition">
+                        <small class="text-green-400">Must be > ₹0</small>
+                    </div>
+                </div>
+                
+                <div class="grid md:grid-cols-3 gap-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-semibold mb-2 text-gray-300">P&L Amount ₹ <span class="text-red-400">*</span></label>
+                        <input id="jPnL" type="number" step="0.01" placeholder="500" class="w-full font-mono bg-gray-700/50 border border-yellow-500/30 rounded-lg p-3 focus:border-yellow-500 transition">
+                        <small class="text-yellow-400">Positive = Win, Negative = Loss</small>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-2 text-gray-300">Emotion</label>
+                        <select id="jEmotion" class="w-full bg-gray-700/50 border border-cyan-500/30 rounded-lg p-3 focus:border-cyan-500 transition">
                             <option>😐 Neutral</option>
                             <option>😊 Confident</option>
                             <option>😨 Fearful</option>
                             <option>🤑 Greedy</option>
                             <option>😱 FOMO</option>
                         </select>
+                        <small class="text-gray-500">Track your mindset</small>
                     </div>
                     <div>
                         <label class="block text-sm font-semibold mb-2 text-gray-300">Trade Date</label>
-                        <input id="jDate" type="date" value="${new Date().toISOString().slice(0,10)}" class="w-full font-mono">
+                        <input id="jDate" type="date" value="${new Date().toISOString().slice(0,10)}" class="w-full font-mono bg-gray-700/50 border border-cyan-500/30 rounded-lg p-3 focus:border-cyan-500 transition">
+                        <small class="text-gray-500">When did you trade?</small>
                     </div>
                 </div>
                 
-                <div>
-                    <label class="block text-sm font-semibold mb-2 text-gray-300">Trade Mistakes / Notes</label>
-                    <textarea id="jMistake" placeholder="Kya galti hui? Kya sikh mila? Agali baar kya improve karoge?" rows="4" class="w-full"></textarea>
+                <div class="mb-6">
+                    <label class="block text-sm font-semibold mb-2 text-gray-300">Mistakes & Lessons</label>
+                    <textarea id="jMistake" placeholder="Kya galti hui? Kya sikh mila? Agali baar kya improve karoge?" rows="4" maxlength="500" class="w-full bg-gray-700/50 border border-cyan-500/30 rounded-lg p-3 focus:border-cyan-500 transition"></textarea>
+                    <small class="text-gray-500">500 characters max - Focus on learning</small>
                 </div>
                 
-                <button id="saveJournalBtn" class="w-full btn-neon py-4 rounded-[14px] font-bold text-lg mt-6 hover:shadow-lg">📝 Add Trade to Journal</button>
+                <div class="p-4 bg-gradient-to-r from-cyan-500/10 to-green-500/10 border border-green-500/30 rounded-lg mb-6">
+                    <p class="text-sm text-gray-300"><span class="text-green-400 font-bold">✅ Auto-Protected Fields:</span></p>
+                    <p class="text-xs text-gray-400 mt-2">🔒 UserId = Your UID (encrypted, cannot change)</p>
+                    <p class="text-xs text-gray-400">🔒 Created Timestamp = Firestore time (immutable)</p>
+                </div>
+                
+                <button id="saveJournalBtn" class="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 py-4 rounded-[14px] font-bold text-lg transition-all shadow-lg hover:shadow-xl">📝 Add Trade to Journal</button>
             </div>
             
             <div class="glass-card p-8">
                 <h3 class="text-2xl font-bold mb-6">📊 Trade History</h3>
+                <div class="mb-4 p-4 bg-blue-500/20 border border-blue-500/30 rounded-lg text-sm text-blue-300">
+                    <span class="font-semibold">ℹ️ Protected Fields:</span> Each trade's Time, User, and Entry Date cannot be edited - Security by design
+                </div>
                 <div class="space-y-3 max-h-[800px] overflow-y-auto">
                     ${trades.length === 0 ? `<div class="text-center py-16 text-gray-500">
                         <div class="text-6xl mb-4">📓</div>
                         <p class="text-lg font-semibold">Abhi tak koi trade nahi recorded hai</p>
                         <p class="text-sm mt-2">Apni first trade add karo aur journey start karo! 🚀</p>
-                    </div>` : trades.map(t=>`<div class="glass-panel p-6 hover:scale-105 trade-entry">
+                    </div>` : trades.map(t=>`<div class="glass-panel p-6 hover:scale-105 trade-entry group">
                         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div class="flex-1">
                                 <div class="flex items-center gap-3 mb-3">
                                     <span class="font-mono font-bold text-lg text-cyan-400">${t.pair}</span>
-                                    <span class="badge">${t.date}</span>
-                                    <span class="badge">${t.emotion}</span>
+                                    <span class="badge bg-gray-700">${t.date}</span>
+                                    <span class="badge bg-purple-500/30 text-purple-300">${t.emotion}</span>
+                                    <span class="badge bg-green-500/20 text-green-300 text-xs">🔒 Locked</span>
                                 </div>
                                 <div class="text-sm text-gray-400 space-y-1">
-                                    <div>📍 Entry: <span class="font-mono font-semibold">${(t.entry||0).toFixed(2)}</span> | Exit: <span class="font-mono font-semibold">${(t.exit||0).toFixed(2)}</span></div>
+                                    <div>📍 Entry: <span class="font-mono font-semibold text-green-400">₹${(t.entry||0).toFixed(2)}</span> | Exit: <span class="font-mono font-semibold text-yellow-400">₹${(t.exit||0).toFixed(2)}</span></div>
                                     ${t.mistake ? `<div class="text-yellow-400/80 italic mt-2">💭 ${t.mistake}</div>` : ''}
                                 </div>
                             </div>
@@ -1903,13 +2293,80 @@
     }
 
     function attachEvents() {
-        document.querySelectorAll('.toggle-day').forEach(btn => { btn.onclick = async () => { const idx = parseInt(btn.dataset.dayidx); dailyProgress[idx] = !dailyProgress[idx]; await window.updateProgress(idx, dailyProgress[idx]); localStorage.setItem('tm_progress', JSON.stringify(dailyProgress)); loadData(); }; });
-        document.getElementById('saveJournalBtn')?.addEventListener('click', async () => { const trade = { pair: document.getElementById('jPair').value, entry: parseFloat(document.getElementById('jEntry').value)||0, exit: parseFloat(document.getElementById('jExit').value)||0, pnl: parseFloat(document.getElementById('jPnL').value), emotion: document.getElementById('jEmotion').value, mistake: document.getElementById('jMistake').value, date: document.getElementById('jDate').value }; if(!trade.pair || !trade.pnl) { window.showToast('Pair aur P&L fill karo', 'error'); return; } await window.addTrade(trade); setTimeout(() => loadData(), 500); });
+        document.querySelectorAll('.toggle-day').forEach(btn => { 
+            btn.onclick = async () => { 
+                const idx = parseInt(btn.dataset.dayidx); 
+                const newCompletedStatus = !dailyProgress[idx];
+                await window.updateProgress(idx, newCompletedStatus); 
+                await loadData(); 
+            }; 
+        });
+        // ==================== JOURNAL FORM VALIDATION ====================
+        document.getElementById('saveJournalBtn')?.addEventListener('click', async () => {
+            const trade = {
+                pair: document.getElementById('jPair').value.trim(),
+                entry: document.getElementById('jEntry').value,
+                exit: document.getElementById('jExit').value,
+                pnl: document.getElementById('jPnL').value,
+                emotion: document.getElementById('jEmotion').value,
+                mistake: document.getElementById('jMistake').value.trim(),
+                date: document.getElementById('jDate').value
+            };
+            
+            // Use centralized validation function
+            const success = await window.addTrade(trade);
+            if (success) {
+                await loadData();
+            }
+        });
         document.getElementById('refreshChartBtn')?.addEventListener('click', () => window.initTradingViewChart());
         document.getElementById('takeTradeExecBtn')?.addEventListener('click', () => window.showToast('🚀 Trade executed! Journal me update karna mat bhoolna.', 'success'));
         document.querySelectorAll('.conf-btn').forEach(btn => { btn.onclick = () => { document.querySelectorAll('.conf-btn').forEach(b=>{b.classList.remove('bg-cyan-600');b.classList.add('bg-gray-700');}); btn.classList.remove('bg-gray-700'); btn.classList.add('bg-cyan-600'); }; });
         
-        // Simulator Risk Calculator
+        // ==================== REAL-TIME VALIDATION - JOURNAL INPUTS ====================
+        // Validate Entry Price on input
+        document.getElementById('jEntry')?.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            if(val <= 0 && e.target.value !== '') {
+                e.target.style.borderColor = '#ff6b6b';
+                e.target.parentElement.querySelector('small').textContent = '❌ Must be > ₹0';
+                e.target.parentElement.querySelector('small').style.color = '#ff6b6b';
+            } else {
+                e.target.style.borderColor = '';
+                e.target.parentElement.querySelector('small').textContent = 'Must be > ₹0';
+                e.target.parentElement.querySelector('small').style.color = '#888';
+            }
+        });
+        
+        // Validate Exit Price on input
+        document.getElementById('jExit')?.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            if(val <= 0 && e.target.value !== '') {
+                e.target.style.borderColor = '#ff6b6b';
+                e.target.parentElement.querySelector('small').textContent = '❌ Must be > ₹0';
+                e.target.parentElement.querySelector('small').style.color = '#ff6b6b';
+            } else {
+                e.target.style.borderColor = '';
+                e.target.parentElement.querySelector('small').textContent = 'Must be > ₹0';
+                e.target.parentElement.querySelector('small').style.color = '';
+            }
+        });
+        
+        // Validate Pair format
+        document.getElementById('jPair')?.addEventListener('input', (e) => {
+            const val = e.target.value.toUpperCase();
+            if(val && !val.match(/^[A-Z0-9]{2,6}\/[A-Z0-9]{2,6}$/) && val !== '') {
+                e.target.style.borderColor = '#ff6b6b';
+                e.target.parentElement.querySelector('small').textContent = '❌ Format: BTC/USDT';
+                e.target.parentElement.querySelector('small').style.color = '#ff6b6b';
+            } else {
+                e.target.style.borderColor = '';
+                e.target.parentElement.querySelector('small').textContent = 'Format: BTC/USDT, ETH/INR';
+                e.target.parentElement.querySelector('small').style.color = '#888';
+            }
+        });
+        
+        // ==================== SIMULATOR RISK CALCULATOR ====================
         function updateSimRisk() {
             const entry = parseFloat(document.getElementById('entryPrice')?.value || 0);
             const sl = parseFloat(document.getElementById('stopLoss')?.value || 0);
@@ -1923,8 +2380,59 @@
             document.getElementById(id)?.addEventListener('input', updateSimRisk);
         });
         
-        function calcPos() { const bal=parseFloat(document.getElementById('calcBal')?.value)||0, risk=parseFloat(document.getElementById('calcRisk')?.value)||0, entry=parseFloat(document.getElementById('calcEntry')?.value)||0, sl=parseFloat(document.getElementById('calcSL')?.value)||0, rr=parseFloat(document.getElementById('calcRR')?.value)||2, riskAmt=(bal*risk)/100, stopDist=Math.abs(entry-sl), posSize=stopDist?riskAmt/stopDist:0, tp=entry>sl?entry+(stopDist*rr):entry-(stopDist*rr), profit=posSize*stopDist*rr; if(document.getElementById('calcResult')) document.getElementById('calcResult').innerHTML=`<div>Risk Amount: <span class="text-red-400">₹${riskAmt.toFixed(2)}</span></div><div>Position Size: <span class="text-cyan-400">${posSize.toFixed(4)}</span></div><div>Take Profit: <span class="text-green-400">${tp.toFixed(2)}</span></div><div>Potential Profit: <span class="text-green-400">₹${profit.toFixed(2)}</span></div>`; }
-        ['calcBal','calcRisk','calcEntry','calcSL','calcRR'].forEach(id=>{document.getElementById(id)?.addEventListener('input',calcPos);}); calcPos();
+        // ==================== POSITION SIZE CALCULATOR WITH VALIDATION ====================
+        function calcPos() {
+            const bal = parseFloat(document.getElementById('calcBal')?.value) || 0;
+            const risk = parseFloat(document.getElementById('calcRisk')?.value) || 0;
+            const entry = parseFloat(document.getElementById('calcEntry')?.value) || 0;
+            const sl = parseFloat(document.getElementById('calcSL')?.value) || 0;
+            const rr = parseFloat(document.getElementById('calcRR')?.value) || 2;
+            
+            // VALIDATION: Risk cannot exceed 2%
+            let riskWarning = '';
+            if(risk > 2) {
+                riskWarning = '<div class="p-3 bg-red-500/20 border border-red-500/50 rounded text-red-400 text-xs font-bold mb-4">⚠️ RISK EXCEEDS 2% - This breaks the golden rule!</div>';
+            }
+            if(risk > 5) {
+                riskWarning = '<div class="p-3 bg-red-900/50 border-2 border-red-500 rounded text-red-300 text-xs font-bold mb-4">🚨 CRITICAL: Risk > 5% - WILL DESTROY ACCOUNT!</div>';
+            }
+            
+            const riskAmt = (bal * risk) / 100;
+            const stopDist = Math.abs(entry - sl);
+            const posSize = stopDist ? riskAmt / stopDist : 0;
+            const tp = entry > sl ? entry + (stopDist * rr) : entry - (stopDist * rr);
+            const profit = posSize * stopDist * rr;
+            
+            if(document.getElementById('calcResult')) {
+                document.getElementById('calcResult').innerHTML = riskWarning + `
+                    <div class="glass-card p-4 border-l-4 border-red-400">
+                        <div class="text-xs text-gray-400 font-semibold uppercase">Risk Amount</div>
+                        <div class="text-2xl font-bold ${risk > 2 ? 'text-red-500' : 'text-red-400'} mt-2">₹${riskAmt.toFixed(2)}</div>
+                        <div class="text-xs ${risk > 2 ? 'text-red-400' : 'text-gray-500'} mt-1">${risk}% of ₹${bal.toLocaleString()}</div>
+                    </div>
+                    <div class="glass-card p-4 border-l-4 border-cyan-400">
+                        <div class="text-xs text-gray-400 font-semibold uppercase">Position Size</div>
+                        <div class="text-2xl font-bold text-cyan-400 mt-2 font-mono">${posSize.toFixed(4)}</div>
+                        <div class="text-xs text-gray-500 mt-1">Units to buy/sell</div>
+                    </div>
+                    <div class="glass-card p-4 border-l-4 border-yellow-400">
+                        <div class="text-xs text-gray-400 font-semibold uppercase">Take Profit Target</div>
+                        <div class="text-2xl font-bold text-yellow-400 mt-2 font-mono">₹${tp.toFixed(2)}</div>
+                        <div class="text-xs text-gray-500 mt-1">1:${rr} Risk:Reward ratio</div>
+                    </div>
+                    <div class="glass-card p-4 border-l-4 border-green-400">
+                        <div class="text-xs text-gray-400 font-semibold uppercase">Potential Profit</div>
+                        <div class="text-2xl font-bold text-green-400 mt-2">₹${profit.toFixed(2)}</div>
+                        <div class="text-xs text-gray-500 mt-1">If trade hits TP</div>
+                    </div>
+                `;
+            }
+        }
+        
+        ['calcBal','calcRisk','calcEntry','calcSL','calcRR'].forEach(id => {
+            document.getElementById(id)?.addEventListener('input', calcPos);
+        });
+        calcPos();
     }
     
     function initAnalyticsCharts() {
